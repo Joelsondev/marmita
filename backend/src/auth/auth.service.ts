@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -22,7 +22,7 @@ export class AuthService {
     const payload = { sub: admin.id, tenantId: admin.tenantId, role: 'admin' };
     return {
       token: this.jwt.sign(payload),
-      admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: admin.tenantId, tenantName: admin.tenant.name },
+      admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: admin.tenantId, tenantName: admin.tenant.name, tenantSlug: admin.tenant.slug },
     };
   }
 
@@ -32,7 +32,7 @@ export class AuthService {
     });
     if (!customer) throw new UnauthorizedException('CPF não encontrado');
 
-    const payload = { sub: customer.id, tenantId: customer.tenantId, role: 'customer' };
+    const payload = { sub: customer.id, tenantId: customer.tenantId, role: 'customer', cpf: customer.cpf };
     return {
       token: this.jwt.sign(payload),
       customer: { id: customer.id, name: customer.name, cpf: customer.cpf, balance: customer.balance },
@@ -77,7 +77,61 @@ export class AuthService {
     const payload = { sub: admin.id, tenantId: tenant.id, role: 'admin' };
     return {
       token: this.jwt.sign(payload),
-      admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: tenant.id, tenantName: tenant.name },
+      admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: tenant.id, tenantName: tenant.name, tenantSlug: tenant.slug },
     };
+  }
+
+  async selfRegisterCustomer(registrationLinkCode: string, name: string, cpf: string, phone: string) {
+    const link = await this.prisma.registrationLink.findUnique({
+      where: { code: registrationLinkCode },
+      include: { tenant: true },
+    });
+    if (!link || !link.active) throw new NotFoundException('Link de cadastro inválido ou expirado');
+
+    const tenant = link.tenant;
+    const cleanCpf = cpf.replace(/\D/g, '');
+
+    const existing = await this.prisma.customer.findUnique({
+      where: { tenantId_cpf: { tenantId: tenant.id, cpf: cleanCpf } },
+    });
+
+    const customer = existing ?? await this.prisma.customer.create({
+      data: { tenantId: tenant.id, name, cpf: cleanCpf, phone, balance: 0 },
+    });
+
+    const payload = { sub: customer.id, tenantId: customer.tenantId, role: 'customer', cpf: customer.cpf };
+    return {
+      token: this.jwt.sign(payload),
+      customer: { id: customer.id, name: customer.name, cpf: customer.cpf, balance: customer.balance },
+    };
+  }
+
+  private generateRegistrationCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  async createRegistrationLink(tenantId: string): Promise<string> {
+    let code = this.generateRegistrationCode();
+    let attempts = 0;
+
+    while (attempts < 10) {
+      const existing = await this.prisma.registrationLink.findUnique({ where: { code } });
+      if (!existing) break;
+      code = this.generateRegistrationCode();
+      attempts++;
+    }
+
+    if (attempts === 10) throw new Error('Could not generate unique code');
+
+    const link = await this.prisma.registrationLink.create({
+      data: { code, tenantId },
+    });
+
+    return link.code;
   }
 }

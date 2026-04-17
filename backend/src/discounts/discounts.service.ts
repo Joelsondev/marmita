@@ -5,6 +5,7 @@ import { IsString, IsNumber, Min, Max } from 'class-validator';
 export class UpsertDiscountDto {
   @IsString() cutoffTime: string; // "HH:MM"
   @IsNumber() @Min(0) @Max(100) discountValue: number;
+  @IsNumber() @Min(1) @Max(10) maxNoShowsBeforeBlock?: number;
 }
 
 @Injectable()
@@ -18,8 +19,17 @@ export class DiscountsService {
   async upsert(tenantId: string, dto: UpsertDiscountDto) {
     return this.prisma.discountRule.upsert({
       where: { tenantId },
-      create: { tenantId, cutoffTime: dto.cutoffTime, discountValue: dto.discountValue },
-      update: { cutoffTime: dto.cutoffTime, discountValue: dto.discountValue },
+      create: {
+        tenantId,
+        cutoffTime: dto.cutoffTime,
+        discountValue: dto.discountValue,
+        maxNoShowsBeforeBlock: dto.maxNoShowsBeforeBlock || 3,
+      },
+      update: {
+        cutoffTime: dto.cutoffTime,
+        discountValue: dto.discountValue,
+        ...(dto.maxNoShowsBeforeBlock && { maxNoShowsBeforeBlock: dto.maxNoShowsBeforeBlock }),
+      },
     });
   }
 

@@ -32,12 +32,18 @@ export const loginClient = (cpf: string, tenantId: string) =>
 export const getClientTenants = (cpf: string) =>
   api.get('/auth/client/tenants', { params: { cpf } }).then((r) => r.data);
 
+export const selfRegisterCustomer = (data: { registrationLinkCode: string; name: string; cpf: string; phone: string }) =>
+  api.post('/auth/client/register', data).then((r) => r.data);
+
 export const registerTenant = (data: any) =>
   api.post('/auth/register', data).then((r) => r.data);
 
 // Tenants
 export const getTenantBySlug = (slug: string) =>
   api.get(`/tenants/slug/${slug}`).then((r) => r.data);
+
+export const getTenantMe = () =>
+  api.get('/tenants/me').then((r) => r.data);
 
 // Customers
 export const getMe = () => api.get('/customers/me').then((r) => r.data);
@@ -46,6 +52,12 @@ export const getCustomer = (id: string) => api.get(`/customers/${id}`).then((r) 
 export const getCustomerByCpf = (cpf: string) => api.get(`/customers/cpf/${cpf}`).then((r) => r.data);
 export const createCustomer = (data: any) => api.post('/customers', data).then((r) => r.data);
 export const updateCustomer = (id: string, data: any) => api.put(`/customers/${id}`, data).then((r) => r.data);
+
+export const unblockCustomer = (id: string) =>
+  api.patch(`/customers/${id}/unblock`).then((r) => r.data);
+
+export const getBlockedCustomers = () =>
+  api.get('/customers?blocked=true').then((r) => r.data);
 
 // Wallet
 export const addCredit = (customerId: string, data: any) =>
@@ -61,6 +73,8 @@ export const getMeal = (id: string) => api.get(`/meals/${id}`).then((r) => r.dat
 export const createMeal = (data: any) => api.post('/meals', data).then((r) => r.data);
 export const updateMeal = (id: string, data: any) => api.put(`/meals/${id}`, data).then((r) => r.data);
 export const deleteMeal = (id: string) => api.delete(`/meals/${id}`).then((r) => r.data);
+export const copyMeal = (id: string, targetDate: string) =>
+  api.post(`/meals/${id}/copy`, { targetDate }).then((r) => r.data);
 
 // Option Groups
 export const createOptionGroup = (data: any) => api.post('/option-groups', data).then((r) => r.data);
@@ -77,13 +91,23 @@ export const getOrders = (date?: string) =>
 export const getOrder = (id: string) => api.get(`/orders/${id}`).then((r) => r.data);
 export const createOrder = (data: any) => api.post('/orders', data).then((r) => r.data);
 export const confirmPickup = (id: string) => api.post(`/orders/${id}/pickup`).then((r) => r.data);
+export const approveOrder = (id: string) => api.post(`/orders/${id}/approve`).then((r) => r.data);
+export const cancelOrder = (id: string) => api.post(`/orders/${id}/cancel`).then((r) => r.data);
 export const confirmPickupByCpf = (cpf: string) =>
   api.post('/orders/pickup/cpf', { cpf }).then((r) => r.data);
 export const getMyOrders = () => api.get('/orders/my').then((r) => r.data);
-export const lookupCheckout = (params: { cpf?: string; customerId?: string }) =>
+export const lookupCheckout = (params: { cpf?: string; customerId?: string; qrToken?: string }) =>
   api.get('/orders/lookup', { params }).then((r) => r.data);
 
-// Discounts
+// Registration Links
+export const createRegistrationLink = () =>
+  api.post('/registration-links').then((r) => r.data);
+
+export const getRegistrationLinks = () =>
+  api.get('/registration-links').then((r) => r.data);
+
+export const validateRegistrationCode = (code: string) =>
+  api.get(`/registration-links/validate/${code}`).then((r) => r.data);
 export const getDiscountRule = () => api.get('/discounts/rule').then((r) => r.data);
 export const upsertDiscountRule = (data: any) => api.put('/discounts/rule', data).then((r) => r.data);
 

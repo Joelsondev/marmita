@@ -7,6 +7,13 @@ export class ClientLoginDto {
   @IsString() tenantId: string;
 }
 
+export class SelfRegisterDto {
+  @IsString() registrationLinkCode: string;
+  @IsString() name: string;
+  @IsString() cpf: string;
+  @IsString() phone: string;
+}
+
 @Controller('auth/client')
 export class ClientAuthController {
   constructor(private auth: AuthService) {}
@@ -19,5 +26,10 @@ export class ClientAuthController {
   @Post('login')
   login(@Body() dto: ClientLoginDto) {
     return this.auth.loginCustomerByCpf(dto.cpf, dto.tenantId);
+  }
+
+  @Post('register')
+  register(@Body() dto: SelfRegisterDto) {
+    return this.auth.selfRegisterCustomer(dto.registrationLinkCode, dto.name, dto.cpf, dto.phone);
   }
 }

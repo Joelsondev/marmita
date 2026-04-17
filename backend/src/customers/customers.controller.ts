@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { CustomersService, CreateCustomerDto, UpdateCustomerDto } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -9,11 +9,14 @@ export class CustomersController {
 
   @Get('me')
   findMe(@Request() req) {
-    return this.service.findOne(req.user.sub, req.user.tenantId);
+    return this.service.findOne(req.user.id, req.user.tenantId);
   }
 
   @Get()
-  findAll(@Request() req) {
+  findAll(@Request() req, @Query('blocked') blocked?: string) {
+    if (blocked === 'true') {
+      return this.service.getBlockedCustomersForTenant(req.user.tenantId);
+    }
     return this.service.findAll(req.user.tenantId);
   }
 
@@ -35,5 +38,10 @@ export class CustomersController {
   @Put(':id')
   update(@Param('id') id: string, @Body() dto: UpdateCustomerDto, @Request() req) {
     return this.service.update(id, req.user.tenantId, dto);
+  }
+
+  @Patch(':id/unblock')
+  unblockCustomer(@Param('id') id: string, @Request() req) {
+    return this.service.unblockCustomer(id, req.user.tenantId);
   }
 }

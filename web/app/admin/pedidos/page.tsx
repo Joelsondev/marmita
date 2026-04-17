@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getOrders } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getOrders, approveOrder, cancelOrder } from '@/lib/api';
 import { formatCurrency } from '@/lib/cart';
-import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 const statusLabel: Record<string, string> = {
   PENDING:   'Pendente',
@@ -17,9 +17,19 @@ function formatCPF(v: string) {
 }
 
 export default function PedidosPage() {
+  const qc = useQueryClient();
   const [date, setDate]             = useState(new Date().toISOString().slice(0, 10));
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter]         = useState<'all' | 'problem'>('all');
+  const [filter, setFilter]         = useState<'all' | 'pending' | 'problem'>('all');
+
+  const approveMut = useMutation({
+    mutationFn: approveOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', date] }),
+  });
+  const cancelMut = useMutation({
+    mutationFn: cancelOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', date] }),
+  });
 
   const { data: allOrders = [], isLoading } = useQuery({
     queryKey: ['orders', date],
@@ -27,9 +37,10 @@ export default function PedidosPage() {
     refetchInterval: 30_000,
   });
 
-  const orders = filter === 'problem'
-    ? (allOrders as any[]).filter((o) => o.status === 'CONFIRMED')
-    : (allOrders as any[]);
+  const orders =
+    filter === 'problem' ? (allOrders as any[]).filter((o) => o.status === 'CONFIRMED') :
+    filter === 'pending' ? (allOrders as any[]).filter((o) => o.status === 'PENDING') :
+    (allOrders as any[]);
 
   const pendingCount = (allOrders as any[]).filter((o) => o.status === 'PENDING').length;
   const problemCount = (allOrders as any[]).filter((o) => o.status === 'CONFIRMED').length;
@@ -67,10 +78,15 @@ export default function PedidosPage() {
             ${filter === 'all' ? 'bg-brand-500 text-white' : 'bg-white border border-gray-200 text-gray-500'}`}>
           Todos
         </button>
+        <button onClick={() => setFilter('pending')}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors
+            ${filter === 'pending' ? 'bg-amber-500 text-white' : 'bg-white border border-gray-200 text-gray-500'}`}>
+          Pendentes {pendingCount > 0 && `(${pendingCount})`}
+        </button>
         <button onClick={() => setFilter('problem')}
           className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors
             ${filter === 'problem' ? 'bg-red-500 text-white' : 'bg-white border border-gray-200 text-gray-500'}`}>
-          Com problema {problemCount > 0 && `(${problemCount})`}
+          Problema {problemCount > 0 && `(${problemCount})`}
         </button>
       </div>
 
@@ -80,11 +96,16 @@ export default function PedidosPage() {
         <div className="space-y-2">
           {orders.length === 0 && (
             <p className="text-center text-gray-400 py-6">
-              {filter === 'problem' ? 'Nenhum pedido com problema' : 'Nenhum pedido para esta data'}
+              {filter === 'problem' ? 'Nenhum pedido com problema' :
+             filter === 'pending' ? 'Nenhum pedido pendente' :
+             'Nenhum pedido para esta data'}
             </p>
           )}
           {orders.map((o: any) => (
-            <div key={o.id} className={`card ${o.status === 'CONFIRMED' ? 'border-red-200 bg-red-50' : ''}`}>
+            <div key={o.id} className={`card ${
+              o.status === 'CONFIRMED' ? 'border-red-200 bg-red-50' :
+              o.status === 'PENDING' && Number(o.customer.balance) < 0 ? 'border-amber-200 bg-amber-50' : ''
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -97,6 +118,9 @@ export default function PedidosPage() {
                     }>
                       {statusLabel[o.status]}
                     </span>
+                    {o.customer.isBlocked && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">Bloqueado</span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5 font-mono">
                     {formatCPF(o.customer.cpf)} · {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -130,7 +154,31 @@ export default function PedidosPage() {
                   {o.status === 'CONFIRMED' && (
                     <div className="flex items-center gap-2 text-xs text-red-500 font-medium pt-1">
                       <AlertTriangle size={13} />
-                      Saldo insuficiente — use a tela de Retirada para adicionar crédito
+                      Saldo insuficiente — cliente precisa adicionar crédito na tela de Retirada
+                    </div>
+                  )}
+                  {o.status === 'PENDING' && Number(o.customer.balance) < 0 && (
+                    <div className="pt-2 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-amber-600 font-medium">
+                        <AlertTriangle size={13} />
+                        Saldo negativo ({formatCurrency(Number(o.customer.balance))}) — aprovar ou rejeitar retirada
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => approveMut.mutate(o.id)}
+                          disabled={approveMut.isPending}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors disabled:opacity-50">
+                          <CheckCircle size={15} />
+                          Aprovar retirada
+                        </button>
+                        <button
+                          onClick={() => cancelMut.mutate(o.id)}
+                          disabled={cancelMut.isPending}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors disabled:opacity-50">
+                          <XCircle size={15} />
+                          Rejeitar
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

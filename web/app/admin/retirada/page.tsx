@@ -24,7 +24,9 @@ function QrScanner({ onDetect, onClose }: { onDetect: (v: string) => void; onClo
   const streamRef    = useRef<MediaStream | null>(null);
   const rafRef       = useRef<number>(0);
   const onDetectRef  = useRef(onDetect);
+  const frameCounterRef = useRef(0);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   // Mantém o ref atualizado sem disparar re-renders
   useEffect(() => { onDetectRef.current = onDetect; }, [onDetect]);
@@ -39,10 +41,24 @@ function QrScanner({ onDetect, onClose }: { onDetect: (v: string) => void; onClo
   const tick = useCallback(async () => {
     const video  = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2) {
+    if (!video || !canvas) {
       rafRef.current = requestAnimationFrame(tick);
       return;
     }
+
+    // Timeout se não conseguir ler vídeo após 50 frames
+    if (video.readyState < 2) {
+      frameCounterRef.current++;
+      if (frameCounterRef.current > 50) {
+        stopStream();
+        setError('Câmera não respondeu. Tente novamente.');
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    frameCounterRef.current = 0;
     canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
@@ -56,13 +72,36 @@ function QrScanner({ onDetect, onClose }: { onDetect: (v: string) => void; onClo
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then((stream) => {
-        streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
-        rafRef.current = requestAnimationFrame(tick);
-      })
-      .catch(() => setError('Não foi possível acessar a câmera. Verifique as permissões.'));
+    const applyStream = (stream: MediaStream) => {
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+      setLoading(false);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const handleError = (err: any) => {
+      console.error('Camera error:', err.name, err.message);
+      setLoading(false);
+      if (err.name === 'NotAllowedError') {
+        setError('Permissão de câmera recusada. Clique no ícone de câmera na barra do navegador e permita o acesso.');
+      } else if (err.name === 'NotFoundError') {
+        setError('Nenhuma câmera encontrada neste dispositivo.');
+      } else {
+        setError(`Erro ao acessar câmera: ${err.message}`);
+      }
+    };
+
+    // Tenta câmera traseira (ideal para mobile), com fallback para qualquer câmera
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+      .then(applyStream)
+      .catch(() =>
+        navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then(applyStream)
+          .catch(handleError)
+      );
+
     return () => stopStream();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -78,7 +117,15 @@ function QrScanner({ onDetect, onClose }: { onDetect: (v: string) => void; onClo
         <div className="alert-error text-sm">{error}</div>
       ) : (
         <div className="relative rounded-2xl overflow-hidden bg-slate-900">
-          <video ref={videoRef} playsInline muted className="w-full" style={{ maxHeight: 280 }} />
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 z-10">
+              <div className="text-white text-center">
+                <div className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-sm">Iniciando câmera...</p>
+              </div>
+            </div>
+          )}
+          <video ref={videoRef} autoPlay playsInline muted className="w-full" style={{ maxHeight: 280 }} />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-52 h-52 border-2 border-brand-400 rounded-3xl opacity-90" />
             <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-transparent to-slate-900/20" />
@@ -103,22 +150,43 @@ export default function RetiradaPage() {
   const [creditAmount, setCreditAmount] = useState('');
   const [showCredit, setShowCredit]     = useState(false);
 
-  const cpfInputRef = useRef<HTMLInputElement>(null);
+  const cpfInputRef    = useRef<HTMLInputElement>(null);
+  const lastScanWasQr  = useRef(false);
 
   const lookupMut = useMutation({
     mutationFn: lookupCheckout,
-    onSuccess: (data) => { setResult(data); setError(''); setShowCamera(false); },
-    onError: (e: any) => { setError(e.response?.data?.message || 'Cliente não encontrado'); setResult(null); },
+    onSuccess: (data) => {
+      setError('');
+      setShowCamera(false);
+      if (data.canPickup && data.orders.length > 0 && lastScanWasQr.current) {
+        autoConfirmPickup(data);
+      } else {
+        setResult(data);
+      }
+    },
+    onError: (e: any) => {
+      setError(e.response?.data?.message || 'Erro ao identificar cliente');
+      setResult(null);
+      // Reinicia câmera após erro no QR
+      if (lastScanWasQr.current) {
+        setShowCamera(false);
+        setTimeout(() => setShowCamera(true), 400);
+      }
+    },
   });
 
   const pickupMut = useMutation({
-    mutationFn: () => confirmPickupByCpf(result!.customer.cpf),
+    mutationFn: (cpf: string) => confirmPickupByCpf(cpf),
     onSuccess: () => {
       setSuccess(true); setResult(null);
       qc.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (e: any) => setError(e.response?.data?.message || 'Erro ao confirmar retirada'),
   });
+
+  function autoConfirmPickup(data: CheckoutData) {
+    pickupMut.mutate(data.customer.cpf);
+  }
 
   const creditMut = useMutation({
     mutationFn: () => addCredit(result!.customer.id, { amount: Number(creditAmount), description: 'Crédito balcão' }),
@@ -131,13 +199,32 @@ export default function RetiradaPage() {
 
   function handleSearchByCpf() {
     if (cpf.length < 11) return;
+    lastScanWasQr.current = false;
     setSuccess(false); setError('');
     lookupMut.mutate({ cpf });
   }
 
-  function handleQrDetect(value: string) {
+  function handleQrDetect(raw: string) {
+    const value = raw.trim();
+    lastScanWasQr.current = true;
     setSuccess(false); setError('');
-    lookupMut.mutate({ customerId: value });
+
+    // Formato atual: token AES hex (100–180 chars, só 0-9 a-f)
+    if (/^[0-9a-f]{80,200}$/.test(value)) {
+      lookupMut.mutate({ qrToken: value });
+      return;
+    }
+    // Legado: JSON { cpf, id, name }
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed.cpf) { lookupMut.mutate({ cpf: parsed.cpf }); return; }
+    } catch { /* não é JSON */ }
+    // Fallback: CPF puro
+    if (/^\d{11}$/.test(value)) {
+      lookupMut.mutate({ cpf: value });
+      return;
+    }
+    setError('QR Code inválido');
   }
 
   function reset() {
@@ -354,7 +441,7 @@ export default function RetiradaPage() {
                     <span className="font-semibold">Saldo suficiente — pode retirar!</span>
                   </div>
                   <button
-                    onClick={() => pickupMut.mutate()}
+                    onClick={() => pickupMut.mutate(result!.customer.cpf)}
                     disabled={pickupMut.isPending}
                     className="w-full py-5 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-2xl font-extrabold text-xl shadow-[0_4px_16px_rgba(16,185,129,0.35)] hover:shadow-[0_8px_28px_rgba(16,185,129,0.45)] hover:-translate-y-px transition-all duration-200 disabled:opacity-50">
                     {pickupMut.isPending ? 'Confirmando…' : '✓ CONFIRMAR RETIRADA'}

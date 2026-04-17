@@ -2,8 +2,10 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getToken, getUser, clearAuth } from '@/lib/auth';
-import { Home, ShoppingCart, QrCode, History } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getToken, getUser, clearAuth, setAuth } from '@/lib/auth';
+import { getMe } from '@/lib/api';
+import { Home, ShoppingCart, QrCode, History, AlertTriangle } from 'lucide-react';
 
 const navItems = [
   { href: '/cliente/home',      label: 'Início',    icon: Home },
@@ -22,18 +24,35 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
     if (!token || user?.role !== 'customer') router.push('/login');
   }, [router]);
 
-  const [user, setUser] = useState(() => getUser());
+  const qc = useQueryClient();
+  const [localUser, setLocalUser] = useState(() => getUser());
 
   useEffect(() => {
-    function onStorage() { setUser(getUser()); }
+    function onStorage() { setLocalUser(getUser()); }
     window.addEventListener('storage', onStorage);
-    // atualiza ao focar a aba (volta de outra página)
     window.addEventListener('focus', onStorage);
     return () => {
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('focus', onStorage);
     };
   }, []);
+
+  // Busca saldo atualizado do servidor a cada 30s
+  const { data: freshUser } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const data = await getMe();
+      const token = getToken();
+      const lu = getUser();
+      if (token && lu) setAuth(token, { ...lu, balance: data.balance });
+      return data;
+    },
+    refetchInterval: 30_000,
+    enabled: typeof window !== 'undefined' && !!getToken() && getUser()?.role === 'customer',
+  });
+
+  const user = localUser;
+  const balance = freshUser != null ? Number(freshUser.balance) : Number(localUser?.balance ?? 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -45,22 +64,28 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
             <p className="font-bold text-sm leading-tight">{user?.name || 'Cliente'}</p>
           </div>
           <button
-            onClick={() => { clearAuth(); router.push('/login'); }}
+            onClick={() => { clearAuth(); qc.clear(); router.push('/login'); }}
             className="text-brand-100 text-xs underline hover:text-white transition-colors">
             Sair
           </button>
         </div>
 
         {/* Card de saldo */}
-        <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between border border-white/20">
+        <div className={`backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between border ${balance < 0 ? 'bg-red-500/25 border-red-300/40' : 'bg-white/15 border-white/20'}`}>
           <div>
             <p className="text-xs text-white/70 font-medium uppercase tracking-wide">Saldo disponível</p>
-            <p className="text-3xl font-extrabold text-white leading-tight mt-0.5">
-              R$ {Number(user?.balance || 0).toFixed(2)}
+            <p className={`text-3xl font-extrabold leading-tight mt-0.5 ${balance < 0 ? 'text-red-200' : 'text-white'}`}>
+              R$ {balance.toFixed(2)}
             </p>
+            {balance < 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                <AlertTriangle size={11} className="text-red-200" />
+                <p className="text-xs text-red-200 font-medium">Adicione saldo para retirar sua marmita</p>
+              </div>
+            )}
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
-            💰
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${balance < 0 ? 'bg-red-400/25' : 'bg-white/20'}`}>
+            {balance < 0 ? '⚠️' : '💰'}
           </div>
         </div>
       </header>

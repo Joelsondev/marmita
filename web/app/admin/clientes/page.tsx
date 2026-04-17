@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCustomers, createCustomer, addCredit } from '@/lib/api';
+import { getCustomers, createCustomer, addCredit, unblockCustomer } from '@/lib/api';
 import { formatCurrency } from '@/lib/cart';
-import { Plus, CreditCard, X, AlertCircle } from 'lucide-react';
+import { Plus, CreditCard, X, AlertCircle, AlertTriangle, Unlock } from 'lucide-react';
 
 function formatCPF(value: string) {
   return value.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4').slice(0, 14);
@@ -16,6 +16,7 @@ export default function ClientesPage() {
   const qc = useQueryClient();
   const [showNew, setShowNew]           = useState(false);
   const [showCredit, setShowCredit]     = useState<string | null>(null);
+  const [showUnblock, setShowUnblock]   = useState<string | null>(null);
   const [search, setSearch]             = useState('');
   const [form, setForm]                 = useState({ name: '', cpf: '', phone: '' });
   const [creditAmount, setCreditAmount] = useState('');
@@ -45,6 +46,14 @@ export default function ClientesPage() {
     },
   });
 
+  const unblockMut = useMutation({
+    mutationFn: (id: string) => unblockCustomer(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      setShowUnblock(null);
+    },
+  });
+
   const filtered = customers.filter((c: any) =>
     c.name.toLowerCase().includes(search.toLowerCase()) || c.cpf.includes(search.replace(/\D/g, ''))
   );
@@ -68,17 +77,41 @@ export default function ClientesPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((c: any) => (
-            <div key={c.id} className="card flex items-center justify-between">
-              <div>
-                <p className="font-medium">{c.name}</p>
-                <p className="text-xs text-gray-400 font-mono">{formatCPF(c.cpf)}</p>
-                <p className="text-sm font-bold text-emerald-600">{formatCurrency(Number(c.balance))}</p>
+            <div key={c.id} className="card">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{c.name}</p>
+                    {c.isBlocked && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                        BLOQUEADO
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 font-mono">{formatCPF(c.cpf)}</p>
+                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(Number(c.balance))}</p>
+                  {c.isBlocked && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {c.noShowCount} não-retirada(s) • {c.lastNoShowAt ? new Date(c.lastNoShowAt).toLocaleDateString() : ''}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {c.isBlocked ? (
+                    <button
+                      onClick={() => setShowUnblock(c.id)}
+                      className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">
+                      <Unlock size={16} /> Desbloquear
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowCredit(c.id)}
+                      className="flex items-center gap-1 bg-brand-50 text-brand-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-brand-100 transition-colors">
+                      <CreditCard size={16} /> Crédito
+                    </button>
+                  )}
+                </div>
               </div>
-              <button
-                onClick={() => setShowCredit(c.id)}
-                className="flex items-center gap-1 bg-brand-50 text-brand-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-brand-100 transition-colors">
-                <CreditCard size={16} /> Crédito
-              </button>
             </div>
           ))}
           {filtered.length === 0 && <p className="text-center text-gray-400 py-6">Nenhum cliente encontrado</p>}
@@ -146,6 +179,30 @@ export default function ClientesPage() {
               disabled={creditMut.isPending || !creditAmount}
               onClick={() => creditMut.mutate({ id: showCredit, data: { amount: parseFloat(creditAmount), description: creditDesc } })}>
               {creditMut.isPending ? 'Adicionando...' : `Adicionar R$ ${parseFloat(creditAmount || '0').toFixed(2)}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Desbloquear Cliente */}
+      {showUnblock && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowUnblock(null)}>
+          <div className="bg-white rounded-t-2xl w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-lg">Desbloquear Cliente</h2>
+              <button onClick={() => setShowUnblock(null)}><X size={20} /></button>
+            </div>
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
+              <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+              <div className="text-sm text-red-700">
+                <p className="font-semibold">Desbloquear este cliente?</p>
+                <p className="mt-1 text-red-600">O contador de não-retiradas será resetado a zero.</p>
+              </div>
+            </div>
+            <button className="btn-primary w-full"
+              disabled={unblockMut.isPending}
+              onClick={() => unblockMut.mutate(showUnblock)}>
+              {unblockMut.isPending ? 'Desbloqueando...' : 'Confirmar Desbloquear'}
             </button>
           </div>
         </div>

@@ -134,7 +134,7 @@ export class OrdersService {
         createdAt: { gte: whereDate, lt: nextDay },
       },
       include: {
-        customer: { select: { name: true, cpf: true } },
+        customer: { select: { name: true, cpf: true, balance: true, isBlocked: true } },
         items: {
           include: {
             meal: { select: { name: true } },
@@ -168,14 +168,6 @@ export class OrdersService {
       where: { id: dto.customerId, tenantId },
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
-
-    // Check if customer is blocked
-    if (customer.isBlocked && !dto.forceBlocked) {
-      throw new ForbiddenException({
-        code: 'CUSTOMER_BLOCKED',
-        message: customer.blockReason || 'Cliente está bloqueado por múltiplas não-retiradas',
-      });
-    }
 
     // Calculate total
     let totalAmount = 0;
@@ -229,6 +221,37 @@ export class OrdersService {
     });
 
     return { ...order, pendingPayment: !hasFunds, missing: hasFunds ? 0 : finalAmount - Number(customer.balance) };
+  }
+
+  async approveOrder(id: string, tenantId: string) {
+    const order = await this.findOne(id, tenantId);
+    if (!['PENDING', 'CONFIRMED'].includes(order.status)) throw new BadRequestException('Pedido não pode ser aprovado');
+
+    const customer = order.customer as any;
+    const total = Number(order.totalAmount);
+
+    await this.prisma.$transaction([
+      this.prisma.walletTransaction.create({
+        data: { customerId: customer.id, type: 'DEBIT', amount: total, description: `Aprovado pelo admin #${id.slice(-6)}` },
+      }),
+      this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { balance: { decrement: total } },
+      }),
+      this.prisma.order.update({
+        where: { id },
+        data: { status: 'PICKED_UP', pickedUp: true, pickedUpAt: new Date() },
+      }),
+    ]);
+
+    return this.findOne(id, tenantId);
+  }
+
+  async cancelOrder(id: string, tenantId: string) {
+    const order = await this.findOne(id, tenantId);
+    if (order.status === 'PICKED_UP') throw new BadRequestException('Pedido já foi retirado');
+    if (order.status === 'CANCELLED') throw new BadRequestException('Pedido já está cancelado');
+    return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } });
   }
 
   async confirmPickup(id: string, tenantId: string) {

@@ -25,13 +25,37 @@ export class MealsService {
       where: {
         tenantId,
         ...(date ? { date: new Date(date) } : {}),
-        active: true,
       },
       include: {
         optionGroups: { include: { options: true } },
       },
       orderBy: { date: 'desc' },
     });
+  }
+
+  async copyMeal(id: string, tenantId: string, targetDate: string) {
+    const meal = await this.findOne(id, tenantId);
+    const newMeal = await this.prisma.meal.create({
+      data: {
+        tenantId,
+        name: meal.name,
+        description: meal.description ?? undefined,
+        basePrice: meal.basePrice,
+        date: new Date(targetDate),
+        active: true,
+      },
+    });
+    for (const group of meal.optionGroups) {
+      const newGroup = await this.prisma.optionGroup.create({
+        data: { mealId: newMeal.id, name: group.name, type: group.type, required: group.required },
+      });
+      for (const option of (group as any).options) {
+        await this.prisma.option.create({
+          data: { groupId: newGroup.id, name: option.name, price: option.price },
+        });
+      }
+    }
+    return this.findOne(newMeal.id, tenantId);
   }
 
   async findToday(tenantId: string) {

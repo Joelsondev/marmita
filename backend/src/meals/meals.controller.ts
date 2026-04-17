@@ -32,6 +32,11 @@ export class MealsController {
     return this.service.update(id, req.user.tenantId, dto);
   }
 
+  @Post(':id/copy')
+  copy(@Param('id') id: string, @Body('targetDate') targetDate: string, @Request() req) {
+    return this.service.copyMeal(id, req.user.tenantId, targetDate);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
     return this.service.remove(id, req.user.tenantId);

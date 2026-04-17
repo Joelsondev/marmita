@@ -3,6 +3,7 @@ import { OrdersService, CreateOrderDto } from './orders.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IsString } from 'class-validator';
 
+
 export class PickupByCpfDto {
   @IsString() cpf: string;
 }
@@ -17,14 +18,25 @@ export class OrdersController {
     return this.service.getDashboard(req.user.tenantId);
   }
 
+  @Get('qr-token')
+  getQrToken(@Request() req) {
+    return this.service.generateQrToken(req.user.id);
+  }
+
   @Get('lookup')
-  lookupCheckout(@Query('cpf') cpf: string, @Query('customerId') customerId: string, @Request() req) {
+  lookupCheckout(
+    @Query('cpf') cpf: string,
+    @Query('customerId') customerId: string,
+    @Query('qrToken') qrToken: string,
+    @Request() req,
+  ) {
+    if (qrToken) return this.service.lookupByQrToken(req.user.tenantId, qrToken);
     return this.service.lookupCheckout(req.user.tenantId, cpf, customerId);
   }
 
   @Get('my')
   getMyOrders(@Request() req) {
-    return this.service.getMyOrders(req.user.sub);
+    return this.service.getMyOrders(req.user.id);
   }
 
   @Get()
@@ -40,6 +52,16 @@ export class OrdersController {
   @Post()
   create(@Body() dto: CreateOrderDto, @Request() req) {
     return this.service.create(req.user.tenantId, dto);
+  }
+
+  @Post(':id/approve')
+  approveOrder(@Param('id') id: string, @Request() req) {
+    return this.service.approveOrder(id, req.user.tenantId);
+  }
+
+  @Post(':id/cancel')
+  cancelOrder(@Param('id') id: string, @Request() req) {
+    return this.service.cancelOrder(id, req.user.tenantId);
   }
 
   @Post(':id/pickup')

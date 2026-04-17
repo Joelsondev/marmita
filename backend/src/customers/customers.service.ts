@@ -63,4 +63,19 @@ export class CustomersService {
     await this.findOne(id, tenantId);
     return this.prisma.customer.update({ where: { id }, data: dto });
   }
+
+  async unblockCustomer(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
+    return this.prisma.customer.update({
+      where: { id },
+      data: { isBlocked: false, noShowCount: 0, blockReason: null, lastNoShowAt: null },
+    });
+  }
+
+  async getBlockedCustomersForTenant(tenantId: string) {
+    return this.prisma.customer.findMany({
+      where: { tenantId, isBlocked: true },
+      orderBy: { lastNoShowAt: 'desc' },
+    });
+  }
 }

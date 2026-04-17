@@ -91,7 +91,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Tela de bloqueio */}
-      {isBlocked ? (
+      {isBlocked && pathname !== '/admin/configuracoes' ? (
         <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock size={32} className="text-red-500" />

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { loginClient, getClientTenants } from '@/lib/api';
 import { setAuth } from '@/lib/auth';
@@ -14,6 +15,7 @@ type Tenant = { id: string; name: string; slug: string };
 
 export default function ClientLoginPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const [step, setStep]           = useState<'cpf' | 'tenant'>('cpf');
   const [cpf, setCpf]             = useState('');
   const [tenants, setTenants]     = useState<Tenant[]>([]);
@@ -59,6 +61,7 @@ export default function ClientLoginPage() {
   async function doLogin(rawCpf: string, tenant: Tenant) {
     const data = await loginClient(rawCpf, tenant.id);
     setAuth(data.token, { ...data.customer, role: 'customer', tenantId: tenant.id });
+    qc.clear();
     router.push('/cliente/home');
   }
 

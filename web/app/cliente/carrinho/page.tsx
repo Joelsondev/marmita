@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { createOrder } from '@/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { createOrder, getMe } from '@/lib/api';
 import { getCart, updateCartItem, clearCart, cartTotal, formatCurrency, CartItem } from '@/lib/cart';
-import { getUser, setAuth } from '@/lib/auth';
+import { getUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -12,6 +12,10 @@ export default function CarrinhoPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const user = getUser();
+
+  // Saldo sempre atualizado (compartilha cache com layout/home)
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: getMe });
+  const balance = me != null ? Number(me.balance) : Number(user?.balance ?? 0);
 
   useEffect(() => { setCart(getCart()); }, []);
 
@@ -101,21 +105,34 @@ export default function CarrinhoPage() {
         </div>
         <div className="flex justify-between text-sm text-gray-400">
           <span>Seu saldo</span>
-          <span className={Number(user?.balance || 0) >= total ? 'text-green-600' : 'text-red-500'}>
-            {formatCurrency(Number(user?.balance || 0))}
+          <span className={balance >= total ? 'text-green-600' : 'text-red-500'}>
+            {formatCurrency(balance)}
           </span>
         </div>
         </div>
 
+      {/* Aviso de não-retiradas */}
+      {me?.isBlocked && (
+        <div className="card bg-amber-50 border border-amber-200 space-y-1">
+          <div className="flex items-center gap-2 text-amber-700">
+            <AlertTriangle size={18} />
+            <p className="font-semibold text-sm">Atenção: não-retiradas registradas</p>
+          </div>
+          <p className="text-amber-700 text-sm">
+            Você possui pedidos não retirados. A marmitaria pode recusar este pedido.
+          </p>
+        </div>
+      )}
+
       {/* Aviso de saldo insuficiente */}
-      {Number(user?.balance || 0) < total && (
+      {balance < total && (
         <div className="card bg-red-50 border border-red-200 space-y-1">
           <div className="flex items-center gap-2 text-red-600">
             <AlertTriangle size={18} />
             <p className="font-semibold text-sm">Saldo insuficiente</p>
           </div>
           <p className="text-red-500 text-sm">
-            Faltam <strong>{formatCurrency(total - Number(user?.balance || 0))}</strong> para retirada.
+            Faltam <strong>{formatCurrency(total - balance)}</strong> para retirada.
             Adicione crédito na marmitaria antes de retirar.
           </p>
         </div>
@@ -127,7 +144,7 @@ export default function CarrinhoPage() {
         </div>
       )}
 
-      {Number(user?.balance || 0) < total ? (
+      {balance < total ? (
         <button className="btn-primary bg-gray-600 hover:bg-gray-700" onClick={handleOrder}
           disabled={orderMut.isPending}>
           {orderMut.isPending ? 'Finalizando...' : `Finalizar mesmo assim · ${formatCurrency(total)}`}

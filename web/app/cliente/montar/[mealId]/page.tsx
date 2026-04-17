@@ -79,7 +79,7 @@ export default function MontarPage({ params }: { params: { mealId: string } }) {
         <h1 className="font-bold text-lg">{meal.name}</h1>
       </div>
 
-      <div className="p-4 space-y-4 pb-32">
+      <div className="p-4 space-y-4 pb-40">
         {/* Price header */}
         <div className="card flex items-center justify-between">
           <div>
@@ -144,7 +144,7 @@ export default function MontarPage({ params }: { params: { mealId: string } }) {
       </div>
 
       {/* Bottom: Add to cart */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20">
         <button onClick={handleAdd} className="btn-primary flex items-center justify-center gap-2">
           <ShoppingCart size={20} />
           Adicionar · {formatCurrency(total * qty)}
