@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscountsService } from '../discounts/discounts.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -20,6 +21,7 @@ export class CreateOrderDto {
   @IsString() customerId: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => OrderItemDto)
   items: OrderItemDto[];
+  @IsOptional() forceBlocked?: boolean;
 }
 
 @Injectable()
@@ -30,7 +32,98 @@ export class OrdersService {
     private wallet: WalletService,
   ) {}
 
+  // ── Chave AES derivada do JWT_SECRET ─────────────────────────────────────
+  private getAesKey(): Buffer {
+    return crypto.scryptSync(process.env.JWT_SECRET || 'secret', 'marmita-qr-v1', 32);
+  }
+
+  async generateQrToken(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        customerId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        createdAt: { gte: dayStart, lt: dayEnd },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // plaintext: cpf:orderId:date (com pedido) ou cpf:date (sem pedido)
+    const plaintext = order
+      ? `${customer.cpf}:${order.id}:${todayStr}`
+      : `${customer.cpf}:${todayStr}`;
+
+    const key    = this.getAesKey();
+    const iv     = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const enc    = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const tag    = cipher.getAuthTag();
+    const token  = Buffer.concat([iv, enc, tag]).toString('hex');
+
+    return {
+      token,
+      orderCode: order ? order.id.slice(-8).toUpperCase() : null,
+      hasOrder: !!order,
+    };
+  }
+
+  async lookupByQrToken(tenantId: string, token: string) {
+    let plain: string;
+    try {
+      const key      = this.getAesKey();
+      const buf      = Buffer.from(token, 'hex');
+      const iv       = buf.slice(0, 12);
+      const tag      = buf.slice(buf.length - 16);
+      const enc      = buf.slice(12, buf.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(tag);
+      plain = decipher.update(enc, undefined, 'utf8') + decipher.final('utf8');
+    } catch {
+      throw new BadRequestException('QR Code inválido ou corrompido.');
+    }
+
+    const parts   = plain.split(':');
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // cpf:orderId:date (3 partes) ou cpf:date (2 partes)
+    const hasOrder = parts.length === 3;
+    const cpf      = parts[0];
+    const orderId  = hasOrder ? parts[1] : undefined;
+    const date     = parts[hasOrder ? 2 : 1];
+
+    if (date !== todayStr) throw new BadRequestException('QR Code expirado. Peça ao cliente para atualizar.');
+    if (!cpf || cpf.length !== 11) throw new BadRequestException('QR Code inválido.');
+
+    // Bloqueia dupla leitura: verifica se o pedido ainda está pendente
+    if (orderId) {
+      const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new BadRequestException('Pedido não encontrado.');
+      if (order.status === 'PICKED_UP') {
+        const at = order.pickedUpAt
+          ? new Date(order.pickedUpAt).toLocaleString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              day: '2-digit', month: '2-digit', year: 'numeric',
+              hour: '2-digit', minute: '2-digit',
+            })
+          : null;
+        const suffix = at ? ` Retirado em ${at}.` : '';
+        throw new BadRequestException(`Este QR Code já foi utilizado. Pedido já retirado.${suffix}`);
+      }
+    }
+
+    return this.lookupCheckout(tenantId, cpf, undefined);
+  }
+
   async findAll(tenantId: string, date?: string) {
+    // Detect and mark no-shows before returning orders
+    await this.detectAndMarkNoShows(tenantId);
+
     const whereDate = date ? new Date(date) : (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
     const nextDay = new Date(whereDate);
     nextDay.setDate(nextDay.getDate() + 1);
@@ -75,6 +168,14 @@ export class OrdersService {
       where: { id: dto.customerId, tenantId },
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
+
+    // Check if customer is blocked
+    if (customer.isBlocked && !dto.forceBlocked) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_BLOCKED',
+        message: customer.blockReason || 'Cliente está bloqueado por múltiplas não-retiradas',
+      });
+    }
 
     // Calculate total
     let totalAmount = 0;
@@ -141,6 +242,11 @@ export class OrdersService {
     }
 
     await this.wallet.debit(customer.id, total, `Retirada pedido #${id.slice(-6)}`);
+
+    // Reset no-show counter when customer picks up
+    if (customer.noShowCount > 0) {
+      await this.prisma.customer.update({ where: { id: customer.id }, data: { noShowCount: 0 } });
+    }
 
     return this.prisma.order.update({
       where: { id },
@@ -247,6 +353,9 @@ export class OrdersService {
   }
 
   async getDashboard(tenantId: string) {
+    // Detect and mark no-shows before building dashboard
+    await this.detectAndMarkNoShows(tenantId);
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -291,5 +400,48 @@ export class OrdersService {
       monthlyRevenue: monthlyRevenueResult._sum.totalAmount || 0,
       monthlyPickedUp,
     };
+  }
+
+  async incrementCustomerNoShowCount(customerId: string, tenantId: string) {
+    const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+
+    const discountRule = await this.prisma.discountRule.findUnique({ where: { tenantId } });
+    const maxNoShows = discountRule?.maxNoShowsBeforeBlock || 3;
+
+    const newCount = (customer.noShowCount || 0) + 1;
+    const isBlocked = newCount >= maxNoShows;
+
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        noShowCount: newCount,
+        isBlocked,
+        lastNoShowAt: new Date(),
+        blockReason: isBlocked ? 'Múltiplas não-retiradas' : null,
+      },
+    });
+  }
+
+  async detectAndMarkNoShows(tenantId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Find orders created today but not picked up yet
+    const unpickedOrders = await this.prisma.order.findMany({
+      where: {
+        customer: { tenantId },
+        createdAt: { gte: today, lt: tomorrow },
+        status: { not: 'PICKED_UP' },
+      },
+      include: { customer: true },
+    });
+
+    // For each unpicked order, increment customer no-show count
+    for (const order of unpickedOrders) {
+      await this.incrementCustomerNoShowCount(order.customerId, tenantId);
+    }
   }
 }

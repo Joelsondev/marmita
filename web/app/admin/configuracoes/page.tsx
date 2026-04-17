@@ -90,11 +90,9 @@ export default function ConfiguracoesPage() {
           </p>
         </div>
 
-        {rule && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
-            Configuração atual: máximo de <strong>{rule.maxNoShowsBeforeBlock || 3} não-retirada(s)</strong> antes de bloqueio
-          </div>
-        )}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+          Configuração {rule ? 'atual' : 'padrão'}: máximo de <strong>{rule?.maxNoShowsBeforeBlock || 3} não-retirada(s)</strong> antes de bloqueio
+        </div>
       </div>
 
       {/* ── Links de Cadastro ── */}
