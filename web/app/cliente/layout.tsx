@@ -25,9 +25,12 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
   }, [router]);
 
   const qc = useQueryClient();
-  const [localUser, setLocalUser] = useState(() => getUser());
+  const [localUser, setLocalUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setLocalUser(getUser());
+    setMounted(true);
     function onStorage() { setLocalUser(getUser()); }
     window.addEventListener('storage', onStorage);
     window.addEventListener('focus', onStorage);
@@ -53,6 +56,7 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
 
   const user = localUser;
   const balance = freshUser != null ? Number(freshUser.balance) : Number(localUser?.balance ?? 0);
+  const isNegative = mounted && balance < 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -71,21 +75,21 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Card de saldo */}
-        <div className={`backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between border ${balance < 0 ? 'bg-red-500/25 border-red-300/40' : 'bg-white/15 border-white/20'}`}>
+        <div className={`backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between border ${isNegative ? 'bg-red-500/25 border-red-300/40' : 'bg-white/15 border-white/20'}`}>
           <div>
             <p className="text-xs text-white/70 font-medium uppercase tracking-wide">Saldo disponível</p>
-            <p className={`text-3xl font-extrabold leading-tight mt-0.5 ${balance < 0 ? 'text-red-200' : 'text-white'}`}>
-              R$ {balance.toFixed(2)}
+            <p className={`text-3xl font-extrabold leading-tight mt-0.5 ${isNegative ? 'text-red-200' : 'text-white'}`}>
+              R$ {mounted ? balance.toFixed(2) : '0.00'}
             </p>
-            {balance < 0 && (
+            {isNegative && (
               <div className="flex items-center gap-1 mt-1">
                 <AlertTriangle size={11} className="text-red-200" />
                 <p className="text-xs text-red-200 font-medium">Adicione saldo para retirar sua marmita</p>
               </div>
             )}
           </div>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${balance < 0 ? 'bg-red-400/25' : 'bg-white/20'}`}>
-            {balance < 0 ? '⚠️' : '💰'}
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isNegative ? 'bg-red-400/25' : 'bg-white/20'}`}>
+            {isNegative ? '⚠️' : '💰'}
           </div>
         </div>
       </header>
