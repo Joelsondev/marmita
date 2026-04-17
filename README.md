@@ -64,6 +64,10 @@ Estrutura:
 
 * O sistema identifica  o cliente e direciona para a marmitaria, se possuir mais de um cadastro, em formato de dropdow a lista de qual ele ira acessar.
 
+* o cliente pode se cadastrar por um hash direto sem a necessidade de ser cadastrado pela marmitaria e fazer seu pedido.
+
+* o cliente que fizer o pedido e não retirar por x vezes (parametro na configuração), fica marcado com uma marcação especial para que a marmitaria possa aceitar o não seu pedido.
+
 3. Pedido:
 
 * possui múltiplos itens
@@ -441,6 +445,56 @@ Gerar:
 * frontend funcional
 * dashboard com métricas
 * fluxo completo de pedidos e retirada
+
+---
+
+# 📝 Mudanças implementadas
+
+## Marmitas (`/admin/marmitas`)
+
+- Filtro de data com navegação por setas (dia anterior / próximo) e indicador "Hoje"
+- Marmitas exibidas por data selecionada (ativas e inativas)
+- Badge "Inativa" e opacidade reduzida para marmitas desativadas
+- Botão **Power** para ativar/desativar a marmita do dia (soft toggle via `active`)
+- Botão **Editar** (lápis) abre modal para alterar nome, descrição e preço base
+- Botão **Copiar** abre modal com seletor de data para duplicar a marmita (incluindo todos os grupos e opções) para outro dia
+- Se não houver marmitas no dia selecionado, exibe automaticamente as do dia anterior com botão "Copiar para este dia"
+- Backend: `GET /meals` agora retorna marmitas ativas e inativas (admin)
+- Backend: novo endpoint `POST /meals/:id/copy` duplica marmita com grupos e opções
+
+## Pedidos (`/admin/pedidos`)
+
+- Filtro **Pendentes** adicionado (além de Todos e Problema)
+- Pedidos com status `CONFIRMED` (saldo insuficiente) exibem botões **Aprovar retirada** e **Rejeitar**
+  - Aprovar: debita o valor mesmo com saldo insuficiente e marca como `PICKED_UP`
+  - Rejeitar: cancela o pedido (`CANCELLED`)
+- Backend: novos endpoints `POST /orders/:id/approve` e `POST /orders/:id/cancel`
+
+## Carrinho do cliente (`/cliente/carrinho`)
+
+- Clientes com não-retiradas registradas (`isBlocked`) veem aviso âmbar informando que a marmitaria pode recusar o pedido
+- O sistema **não bloqueia** mais o pedido por não-retiradas — a decisão de aceitar ou recusar é da marmitaria
+
+## QR Code do cliente (`/cliente/qrcode`)
+
+- Saldo atualizado em tempo real via `getMe` (compartilha cache com o layout)
+- Quando saldo negativo: valor exibido em vermelho, card com fundo/borda vermelhos e mensagem "Adicione saldo na marmitaria para retirar"
+
+## Header do cliente (layout)
+
+- Quando saldo negativo: card de saldo muda para fundo vermelho translúcido, valor em vermelho claro, ícone 💰 vira ⚠️ e mensagem "Adicione saldo para retirar sua marmita" aparece abaixo do valor
+
+## Pedidos (`/admin/pedidos`) — revisão
+
+- `findAll` agora retorna `balance` e `isBlocked` do cliente em cada pedido
+- Pedidos PENDING com `balance < 0`: fundo âmbar + botões **Aprovar retirada** e **Rejeitar** (admin decide)
+- Pedidos CONFIRMED (sem saldo): apenas aviso informando para adicionar crédito na tela de Retirada — sem botões de aprovação
+- Badge "Bloqueado" visível no card quando `isBlocked = true`
+- Validação de retirada confirmada correta: `confirmPickup` e `confirmPickupByCpf` bloqueiam se `balance < total`
+
+## Clientes (`/admin/clientes`)
+
+- Corrigido erro de JSX: modal "Desbloquear Cliente" estava aninhado incorretamente dentro do modal "Crédito"
 
 ---
 
