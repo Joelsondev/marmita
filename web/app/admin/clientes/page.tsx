@@ -77,7 +77,7 @@ export default function ClientesPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((c: any) => (
-            <div key={c.id} className="card">
+            <div key={c.id} className={`card ${Number(c.balance) < 0 ? 'border-red-200 bg-red-50' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -87,9 +87,16 @@ export default function ClientesPage() {
                         BLOQUEADO
                       </span>
                     )}
+                    {Number(c.balance) < 0 && !c.isBlocked && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
+                        SALDO NEGATIVO
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 font-mono">{formatCPF(c.cpf)}</p>
-                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(Number(c.balance))}</p>
+                  <p className={`text-sm font-bold ${Number(c.balance) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {formatCurrency(Number(c.balance))}
+                  </p>
                   {c.isBlocked && (
                     <p className="text-xs text-red-600 mt-1">
                       {c.noShowCount} não-retirada(s) • {c.lastNoShowAt ? new Date(c.lastNoShowAt).toLocaleDateString() : ''}
