@@ -45,7 +45,8 @@ export class OrdersService {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const _d = new Date();
+    const todayStr = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
     const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
     const dayEnd   = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
 
@@ -93,7 +94,8 @@ export class OrdersService {
     }
 
     const parts   = plain.split(':');
-    const todayStr = new Date().toISOString().split('T')[0];
+    const _now = new Date();
+    const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
 
     // cpf:orderId:date (3 partes) ou cpf:date (2 partes)
     const hasOrder = parts.length === 3;
@@ -539,22 +541,30 @@ export class OrdersService {
   async detectAndMarkNoShows(tenantId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-    // Find orders created today but not picked up yet
-    const unpickedOrders = await this.prisma.order.findMany({
+    // Find unique customers with unpicked orders from yesterday
+    const unpickedRows = await this.prisma.order.findMany({
       where: {
         customer: { tenantId },
-        createdAt: { gte: today, lt: tomorrow },
+        createdAt: { gte: yesterday, lt: today },
         status: { not: 'PICKED_UP' },
       },
-      include: { customer: true },
+      select: { customerId: true },
+      distinct: ['customerId'],
     });
 
-    // For each unpicked order, increment customer no-show count
-    for (const order of unpickedOrders) {
-      await this.incrementCustomerNoShowCount(order.customerId, tenantId);
+    for (const { customerId } of unpickedRows) {
+      const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { lastNoShowAt: true } });
+      if (!customer) continue;
+      // Skip if already marked for yesterday (prevents duplicate on repeated calls)
+      if (customer.lastNoShowAt) {
+        const last = new Date(customer.lastNoShowAt);
+        last.setHours(0, 0, 0, 0);
+        if (last.getTime() === yesterday.getTime()) continue;
+      }
+      await this.incrementCustomerNoShowCount(customerId, tenantId);
     }
   }
 }

@@ -16,7 +16,9 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/admin/login';
+      const path = window.location.pathname;
+      const isClientArea = path.startsWith('/cliente') || path.startsWith('/login') || path.startsWith('/cadastro');
+      window.location.href = isClientArea ? '/login' : '/admin/login';
     }
     return Promise.reject(err);
   },
@@ -62,8 +64,10 @@ export const getBlockedCustomers = () =>
 // Wallet
 export const addCredit = (customerId: string, data: any) =>
   api.post(`/wallet/${customerId}/credit`, data).then((r) => r.data);
-export const getTransactions = (customerId: string) =>
+export const getAdminTransactions = (customerId: string) =>
   api.get(`/wallet/${customerId}/transactions`).then((r) => r.data);
+export const getTransactions = () =>
+  api.get('/customers/me/transactions').then((r) => r.data);
 
 // Meals
 export const getMeals = (date?: string) =>

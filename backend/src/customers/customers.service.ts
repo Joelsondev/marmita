@@ -21,7 +21,7 @@ export class CustomersService {
     return this.prisma.customer.findMany({
       where: { tenantId },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, cpf: true, phone: true, balance: true, createdAt: true },
+      select: { id: true, name: true, cpf: true, phone: true, balance: true, createdAt: true, isBlocked: true, noShowCount: true, blockReason: true, lastNoShowAt: true },
     });
   }
 

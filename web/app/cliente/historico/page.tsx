@@ -1,4 +1,5 @@
 'use client';
+import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getTransactions } from '@/lib/api';
 import { getUser } from '@/lib/auth';
@@ -7,22 +8,22 @@ import { useSearchParams } from 'next/navigation';
 import { CheckCircle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import Link from 'next/link';
 
-export default function HistoricoPage() {
+function HistoricoContent() {
   const user = getUser();
   const searchParams = useSearchParams();
   const success = searchParams.get('success');
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions', user?.id],
-    queryFn: () => getTransactions(user?.id || ''),
+  const { data, isLoading } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: () => getTransactions(),
     enabled: !!user?.id,
   });
+  const transactions = data?.transactions ?? [];
 
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-bold">Histórico</h1>
 
-      {/* Success banner */}
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle className="text-green-500" size={28} />
@@ -33,13 +34,11 @@ export default function HistoricoPage() {
         </div>
       )}
 
-      {/* Balance */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-400 rounded-2xl p-4 text-white">
         <p className="text-orange-100 text-sm">Saldo atual</p>
         <p className="text-3xl font-bold">{formatCurrency(Number(user?.balance || 0))}</p>
       </div>
 
-      {/* Transactions */}
       <div>
         <h2 className="font-semibold mb-2">Movimentações</h2>
         {isLoading ? (
@@ -74,5 +73,13 @@ export default function HistoricoPage() {
         </Link>
       )}
     </div>
+  );
+}
+
+export default function HistoricoPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-center text-gray-400">Carregando...</div>}>
+      <HistoricoContent />
+    </Suspense>
   );
 }
