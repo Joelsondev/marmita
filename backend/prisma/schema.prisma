@@ -22,6 +22,7 @@ model Tenant {
   operators         Operator[]
   subscription      Subscription?
   registrationLinks RegistrationLink[]
+  auditLogs         AuditLog[]
 }
 
 model Subscription {
@@ -199,6 +200,29 @@ model OrderItemOption {
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
   optionId    String
   option      Option    @relation(fields: [optionId], references: [id])
+}
+
+enum AuditAction {
+  APPROVE_ORDER
+  FORCE_PICKUP
+  CANCEL_ORDER
+  ADD_CREDIT
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  actorId    String
+  actorRole  String
+  actorName  String
+  action     AuditAction
+  targetId   String?
+  targetType String?
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  @@index([tenantId, createdAt(sort: Desc)])
 }
 
 model DiscountRule {

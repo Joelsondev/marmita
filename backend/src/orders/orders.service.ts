@@ -3,6 +3,9 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscountsService } from '../discounts/discounts.service';
 import { WalletService } from '../wallet/wallet.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+
+type Actor = { id: string; role: string };
 import { IsArray, IsString, IsNumber, IsOptional, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -30,6 +33,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private discounts: DiscountsService,
     private wallet: WalletService,
+    private auditLogs: AuditLogsService,
   ) {}
 
   // ── Chave AES derivada do JWT_SECRET ─────────────────────────────────────
@@ -223,7 +227,7 @@ export class OrdersService {
     return { ...order, pendingPayment: !hasFunds, missing: hasFunds ? 0 : finalAmount - Number(customer.balance) };
   }
 
-  async approveOrder(id: string, tenantId: string) {
+  async approveOrder(id: string, tenantId: string, actor: Actor) {
     const order = await this.findOne(id, tenantId);
     if (!['PENDING', 'CONFIRMED'].includes(order.status)) throw new BadRequestException('Pedido não pode ser aprovado');
 
@@ -244,14 +248,36 @@ export class OrdersService {
       }),
     ]);
 
+    await this.auditLogs.log({
+      tenantId,
+      actor,
+      action: 'APPROVE_ORDER',
+      targetId: id,
+      targetType: 'ORDER',
+      metadata: { orderId: id, customerId: customer.id, customerName: customer.name, amount: total },
+    });
+
     return this.findOne(id, tenantId);
   }
 
-  async cancelOrder(id: string, tenantId: string) {
+  async cancelOrder(id: string, tenantId: string, actor: Actor) {
     const order = await this.findOne(id, tenantId);
     if (order.status === 'PICKED_UP') throw new BadRequestException('Pedido já foi retirado');
     if (order.status === 'CANCELLED') throw new BadRequestException('Pedido já está cancelado');
-    return this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+
+    const result = await this.prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+
+    const customer = order.customer as any;
+    await this.auditLogs.log({
+      tenantId,
+      actor,
+      action: 'CANCEL_ORDER',
+      targetId: id,
+      targetType: 'ORDER',
+      metadata: { orderId: id, customerId: customer.id, customerName: customer.name, amount: Number(order.totalAmount) },
+    });
+
+    return result;
   }
 
   async confirmPickup(id: string, tenantId: string) {
@@ -318,7 +344,7 @@ export class OrdersService {
     return { customer, orders, totalDue, canPickup, missing };
   }
 
-  async forcePickup(id: string, tenantId: string) {
+  async forcePickup(id: string, tenantId: string, actor: Actor) {
     const order = await this.findOne(id, tenantId);
     if (order.status === 'PICKED_UP') throw new BadRequestException('Pedido já foi retirado');
     if (order.status === 'CANCELLED') throw new BadRequestException('Pedido está cancelado');
@@ -339,6 +365,15 @@ export class OrdersService {
         data: { status: 'PICKED_UP', pickedUp: true, pickedUpAt: new Date() },
       }),
     ]);
+
+    await this.auditLogs.log({
+      tenantId,
+      actor,
+      action: 'FORCE_PICKUP',
+      targetId: id,
+      targetType: 'ORDER',
+      metadata: { orderId: id, customerId: customer.id, customerName: customer.name, amount: total, balanceBefore: Number(customer.balance) },
+    });
 
     return this.findOne(id, tenantId);
   }

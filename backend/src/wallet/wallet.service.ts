@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+
+type Actor = { id: string; role: string };
 
 export class AddCreditDto {
   @IsNumber() @Min(0.01) amount: number;
@@ -9,9 +12,9 @@ export class AddCreditDto {
 
 @Injectable()
 export class WalletService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private auditLogs: AuditLogsService) {}
 
-  async addCredit(customerId: string, tenantId: string, dto: AddCreditDto) {
+  async addCredit(customerId: string, tenantId: string, dto: AddCreditDto, actor: Actor) {
     const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
@@ -29,6 +32,15 @@ export class WalletService {
         data: { balance: { increment: dto.amount } },
       }),
     ]);
+
+    await this.auditLogs.log({
+      tenantId,
+      actor,
+      action: 'ADD_CREDIT',
+      targetId: customerId,
+      targetType: 'CUSTOMER',
+      metadata: { customerId, customerName: customer.name, amount: dto.amount, description: dto.description || 'Crédito adicionado' },
+    });
 
     return { balance: updated.balance, transaction };
   }

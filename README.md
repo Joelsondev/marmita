@@ -628,6 +628,54 @@ Gerar:
 
 ---
 
+# 🔔 Log de Ações (Audit Log)
+
+Rastreamento de ações sensíveis realizadas por admins e operadores.
+
+## Ações registradas
+
+| Ação | Quando é gerada |
+|------|----------------|
+| `APPROVE_ORDER` | Admin aprova retirada de pedido com saldo insuficiente |
+| `FORCE_PICKUP` | Admin libera retirada forçada (balance pode ficar negativo) |
+| `CANCEL_ORDER` | Admin cancela um pedido |
+| `ADD_CREDIT` | Admin adiciona crédito na carteira do cliente |
+
+## Dados gravados por log
+
+- **Quem:** `actorId`, `actorRole` (admin/operator), `actorName` (resolvido do banco)
+- **O quê:** `action` (enum acima)
+- **Alvo:** `targetId` + `targetType` (ORDER ou CUSTOMER)
+- **Detalhes:** `metadata` com orderId, customerId, customerName, amount, etc.
+- **Quando:** `createdAt`
+
+## Endpoint de consulta (somente Admin)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/audit-logs` | Todos os logs do tenant (paginado) |
+| `GET` | `/audit-logs?action=FORCE_PICKUP` | Filtrar por ação específica |
+| `GET` | `/audit-logs?limit=50&offset=0` | Paginação |
+
+## Modelo no banco
+
+```prisma
+model AuditLog {
+  id         String      @id @default(uuid())
+  tenantId   String
+  actorId    String
+  actorRole  String      // "admin" | "operator"
+  actorName  String
+  action     AuditAction // APPROVE_ORDER | FORCE_PICKUP | CANCEL_ORDER | ADD_CREDIT
+  targetId   String?
+  targetType String?     // "ORDER" | "CUSTOMER"
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+}
+```
+
+---
+
 # ⭐ Diferencial
 
 Sistema deve ser:

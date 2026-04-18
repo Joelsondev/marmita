@@ -74,14 +74,14 @@ export class OrdersController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   approveOrder(@Param('id') id: string, @Request() req) {
-    return this.service.approveOrder(id, req.user.tenantId);
+    return this.service.approveOrder(id, req.user.tenantId, req.user);
   }
 
   @Post(':id/cancel')
   @UseGuards(RolesGuard)
   @Roles('admin')
   cancelOrder(@Param('id') id: string, @Request() req) {
-    return this.service.cancelOrder(id, req.user.tenantId);
+    return this.service.cancelOrder(id, req.user.tenantId, req.user);
   }
 
   @Post(':id/pickup')
@@ -93,7 +93,7 @@ export class OrdersController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   forcePickup(@Param('id') id: string, @Request() req) {
-    return this.service.forcePickup(id, req.user.tenantId);
+    return this.service.forcePickup(id, req.user.tenantId, req.user);
   }
 
   @Post('pickup/cpf')

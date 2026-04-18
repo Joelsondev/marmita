@@ -12,6 +12,7 @@ import { DiscountsModule } from './discounts/discounts.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
 import { OperatorsModule } from './operators/operators.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { OperatorsModule } from './operators/operators.module';
     SubscriptionModule,
     SuperAdminModule,
     OperatorsModule,
+    AuditLogsModule,
   ],
 })
 export class AppModule {}

@@ -17,7 +17,7 @@ export class WalletController {
 
   @Post(':customerId/credit')
   addCredit(@Param('customerId') customerId: string, @Body() dto: AddCreditDto, @Request() req) {
-    return this.service.addCredit(customerId, req.user.tenantId, dto);
+    return this.service.addCredit(customerId, req.user.tenantId, dto, req.user);
   }
 
   @Get(':customerId/transactions')
