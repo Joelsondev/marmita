@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDiscountRule, upsertDiscountRule, getSubscription, activateSubscription, createRegistrationLink, getRegistrationLinks } from '@/lib/api';
-import { Save, Clock, Percent, CheckCircle, Crown, Calendar, AlertTriangle, Lock, Link2, Copy, Check, Plus } from 'lucide-react';
+import { Save, Clock, Percent, CheckCircle, Crown, Calendar, AlertTriangle, Lock, Link2, Copy, Check, Plus, Loader2 } from 'lucide-react';
 
 const plans = [
   { key: 'monthly',   label: 'Mensal',      price: 'R$ 49,90/mês',    total: 'R$ 49,90',   savings: '' },
@@ -245,23 +245,30 @@ export default function ConfiguracoesPage() {
           </div>
         )}
 
-        {saved && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-            <CheckCircle size={15} /> Configuração salva com sucesso!
-          </div>
-        )}
       </div>
 
       {/* ── Botão Salvar (Final) ── */}
-      <button className="btn-primary flex items-center justify-center gap-2 w-full" disabled={saveMut.isPending || !isActive}
-        onClick={() => saveMut.mutate({
-          cutoffTime: form.cutoffTime,
-          discountValue: parseFloat(form.discountValue),
-          maxNoShowsBeforeBlock: form.maxNoShowsBeforeBlock
-        })}>
-        <Save size={18} />
-        {saveMut.isPending ? 'Salvando...' : 'Salvar todas as configurações'}
-      </button>
+      <div className="space-y-3">
+        <button
+          className="btn-primary flex items-center justify-center gap-2 w-full transition-all"
+          disabled={saveMut.isPending || !isActive}
+          onClick={() => saveMut.mutate({
+            cutoffTime: form.cutoffTime,
+            discountValue: parseFloat(form.discountValue),
+            maxNoShowsBeforeBlock: form.maxNoShowsBeforeBlock,
+          })}>
+          {saveMut.isPending
+            ? <Loader2 size={18} className="animate-spin" />
+            : <Save size={18} />}
+          {saveMut.isPending ? 'Processando...' : 'Salvar configurações'}
+        </button>
+
+        {saved && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+            <CheckCircle size={15} /> Configurações salvas com sucesso!
+          </div>
+        )}
+      </div>
     </div>
   );
 }
