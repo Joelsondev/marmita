@@ -1,4 +1,5 @@
 'use client';
+import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getTransactions } from '@/lib/api';
 import { getUser } from '@/lib/auth';
@@ -7,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { CheckCircle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import Link from 'next/link';
 
-export default function HistoricoPage() {
+function HistoricoContent() {
   const user = getUser();
   const searchParams = useSearchParams();
   const success = searchParams.get('success');
@@ -74,5 +75,13 @@ export default function HistoricoPage() {
         </Link>
       )}
     </div>
+  );
+}
+
+export default function HistoricoPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-gray-400 text-sm text-center">Carregando...</div>}>
+      <HistoricoContent />
+    </Suspense>
   );
 }
