@@ -318,6 +318,31 @@ export class OrdersService {
     return { customer, orders, totalDue, canPickup, missing };
   }
 
+  async forcePickup(id: string, tenantId: string) {
+    const order = await this.findOne(id, tenantId);
+    if (order.status === 'PICKED_UP') throw new BadRequestException('Pedido já foi retirado');
+    if (order.status === 'CANCELLED') throw new BadRequestException('Pedido está cancelado');
+
+    const customer = order.customer as any;
+    const total = Number(order.totalAmount);
+
+    await this.prisma.$transaction([
+      this.prisma.walletTransaction.create({
+        data: { customerId: customer.id, type: 'DEBIT', amount: total, description: `Retirada forçada pelo admin #${id.slice(-6)}` },
+      }),
+      this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { balance: { decrement: total } },
+      }),
+      this.prisma.order.update({
+        where: { id },
+        data: { status: 'PICKED_UP', pickedUp: true, pickedUpAt: new Date() },
+      }),
+    ]);
+
+    return this.findOne(id, tenantId);
+  }
+
   async confirmPickupByCpf(cpf: string, tenantId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { tenantId_cpf: { tenantId, cpf } },
@@ -390,7 +415,7 @@ export class OrdersService {
     const where = { customer: { tenantId }, createdAt: { gte: today, lt: tomorrow } };
     const whereMonth = { customer: { tenantId }, createdAt: { gte: monthStart, lt: monthEnd } };
 
-    const [ordersToday, pickedUpToday, pendingPickup, pendingPayment, revenueResult, problemOrders, monthlyRevenueResult, monthlyPickedUp] =
+    const [ordersToday, pickedUpToday, pendingPickup, pendingPayment, revenueResult, problemOrders, monthlyRevenueResult, monthlyPickedUp, walletSummary] =
       await Promise.all([
         this.prisma.order.count({ where }),
         this.prisma.order.count({ where: { ...where, status: 'PICKED_UP' } }),
@@ -411,7 +436,13 @@ export class OrdersService {
           _sum: { totalAmount: true },
         }),
         this.prisma.order.count({ where: { ...whereMonth, status: 'PICKED_UP' } }),
+        this.prisma.customer.aggregate({
+          where: { tenantId },
+          _sum: { balance: true },
+        }),
       ]);
+
+    const debtorsCount = await this.prisma.customer.count({ where: { tenantId, balance: { lt: 0 } } });
 
     return {
       ordersToday,
@@ -422,6 +453,8 @@ export class OrdersService {
       problemOrders,
       monthlyRevenue: monthlyRevenueResult._sum.totalAmount || 0,
       monthlyPickedUp,
+      totalSystemBalance: walletSummary._sum.balance || 0,
+      debtorsCount,
     };
   }
 

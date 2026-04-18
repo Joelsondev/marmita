@@ -13,10 +13,9 @@ export class CustomersController {
   }
 
   @Get()
-  findAll(@Request() req, @Query('blocked') blocked?: string) {
-    if (blocked === 'true') {
-      return this.service.getBlockedCustomersForTenant(req.user.tenantId);
-    }
+  findAll(@Request() req, @Query('blocked') blocked?: string, @Query('debtors') debtors?: string) {
+    if (blocked === 'true') return this.service.getBlockedCustomersForTenant(req.user.tenantId);
+    if (debtors === 'true') return this.service.getDebtors(req.user.tenantId);
     return this.service.findAll(req.user.tenantId);
   }
 

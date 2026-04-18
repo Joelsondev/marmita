@@ -7,6 +7,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class WalletController {
   constructor(private service: WalletService) {}
 
+  @Get('summary')
+  getTenantSummary(@Request() req) {
+    return this.service.getTenantSummary(req.user.tenantId);
+  }
+
   @Post(':customerId/credit')
   addCredit(@Param('customerId') customerId: string, @Body() dto: AddCreditDto, @Request() req) {
     return this.service.addCredit(customerId, req.user.tenantId, dto);

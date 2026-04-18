@@ -51,6 +51,30 @@ export class WalletService {
     return { balance: updated.balance, transaction };
   }
 
+  async getTenantSummary(tenantId: string) {
+    const result = await this.prisma.customer.aggregate({
+      where: { tenantId },
+      _sum: { balance: true },
+      _count: { id: true },
+    });
+
+    const debtors = await this.prisma.customer.count({
+      where: { tenantId, balance: { lt: 0 } },
+    });
+
+    const totalDebt = await this.prisma.customer.aggregate({
+      where: { tenantId, balance: { lt: 0 } },
+      _sum: { balance: true },
+    });
+
+    return {
+      totalCustomers: result._count.id,
+      totalSystemBalance: result._sum.balance ?? 0,
+      debtorsCount: debtors,
+      totalDebt: totalDebt._sum.balance ?? 0,
+    };
+  }
+
   async getTransactions(customerId: string, tenantId: string) {
     const customer = await this.prisma.customer.findFirst({ where: { id: customerId, tenantId } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');

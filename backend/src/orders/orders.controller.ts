@@ -69,6 +69,11 @@ export class OrdersController {
     return this.service.confirmPickup(id, req.user.tenantId);
   }
 
+  @Post(':id/pickup/force')
+  forcePickup(@Param('id') id: string, @Request() req) {
+    return this.service.forcePickup(id, req.user.tenantId);
+  }
+
   @Post('pickup/cpf')
   confirmPickupByCpf(@Body() dto: PickupByCpfDto, @Request() req) {
     return this.service.confirmPickupByCpf(dto.cpf, req.user.tenantId);

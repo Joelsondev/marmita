@@ -78,4 +78,12 @@ export class CustomersService {
       orderBy: { lastNoShowAt: 'desc' },
     });
   }
+
+  async getDebtors(tenantId: string) {
+    return this.prisma.customer.findMany({
+      where: { tenantId, balance: { lt: 0 } },
+      orderBy: { balance: 'asc' },
+      select: { id: true, name: true, cpf: true, phone: true, balance: true, createdAt: true },
+    });
+  }
 }
