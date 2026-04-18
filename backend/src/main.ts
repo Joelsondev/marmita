@@ -22,6 +22,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 Backend rodando em http://localhost:${port}/api`);
+  const baseUrl = process.env.APP_URL || `http://localhost:${port}`;
+  console.log(`🚀 Backend rodando em ${baseUrl}/api`);
 }
 bootstrap();
