@@ -15,6 +15,15 @@ type LogPayload = {
   metadata?: Record<string, any>;
 };
 
+type FindParams = {
+  tenantId: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+};
+
 @Injectable()
 export class AuditLogsService {
   constructor(private prisma: PrismaService) {}
@@ -48,29 +57,31 @@ export class AuditLogsService {
     });
   }
 
-  async findAll(tenantId: string, limit = 50, offset = 0) {
-    const [logs, total] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset,
-      }),
-      this.prisma.auditLog.count({ where: { tenantId } }),
-    ]);
-    return { logs, total, limit, offset };
-  }
+  async find({ tenantId, action, dateFrom, dateTo, limit = 50, offset = 0 }: FindParams) {
+    const where: any = { tenantId };
 
-  async findByAction(tenantId: string, action: string, limit = 50, offset = 0) {
+    if (action) where.action = action;
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(`${dateFrom}T00:00:00`);
+      }
+      if (dateTo) {
+        where.createdAt.lte = new Date(`${dateTo}T23:59:59`);
+      }
+    }
+
     const [logs, total] = await Promise.all([
       this.prisma.auditLog.findMany({
-        where: { tenantId, action: action as any },
+        where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      this.prisma.auditLog.count({ where: { tenantId, action: action as any } }),
+      this.prisma.auditLog.count({ where }),
     ]);
+
     return { logs, total, limit, offset };
   }
 }

@@ -14,13 +14,18 @@ export class AuditLogsController {
   findAll(
     @Request() req,
     @Query('action') action?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    const l = limit ? parseInt(limit, 10) : 50;
-    const o = offset ? parseInt(offset, 10) : 0;
-
-    if (action) return this.service.findByAction(req.user.tenantId, action, l, o);
-    return this.service.findAll(req.user.tenantId, l, o);
+    return this.service.find({
+      tenantId: req.user.tenantId,
+      action: action || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      limit: limit ? parseInt(limit, 10) : 20,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
   }
 }

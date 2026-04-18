@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getToken, getUser, clearAuth } from '@/lib/auth';
 import { getSubscription } from '@/lib/api';
-import { LayoutDashboard, Users, UtensilsCrossed, ShoppingBag, Settings, LogOut, PackageCheck, AlertTriangle, Lock } from 'lucide-react';
+import { LayoutDashboard, Users, UtensilsCrossed, ShoppingBag, Settings, LogOut, PackageCheck, AlertTriangle, Lock, ScrollText } from 'lucide-react';
 
 const navItems = [
   { href: '/admin/dashboard',     label: 'Dashboard', icon: LayoutDashboard },
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/admin/marmitas',      label: 'Marmitas',  icon: UtensilsCrossed },
   { href: '/admin/pedidos',       label: 'Pedidos',   icon: ShoppingBag },
   { href: '/admin/retirada',      label: 'Retirada',  icon: PackageCheck },
+  { href: '/admin/logs',          label: 'Logs',      icon: ScrollText },
   { href: '/admin/configuracoes', label: 'Config',    icon: Settings },
 ];
 
@@ -128,10 +129,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {active && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-brand-500 rounded-full" />
               )}
-              <span className={`flex items-center justify-center w-8 h-6 rounded-lg transition-colors ${active ? 'bg-brand-50' : ''}`}>
-                <Icon size={20} />
+              <span className={`flex items-center justify-center w-7 h-6 rounded-lg transition-colors ${active ? 'bg-brand-50' : ''}`}>
+                <Icon size={18} />
               </span>
-              <span className="mt-0.5">{item.label}</span>
+              <span className="mt-0.5 text-[10px]">{item.label}</span>
             </Link>
           );
         })}

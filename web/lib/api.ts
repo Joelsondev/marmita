@@ -116,6 +116,10 @@ export const getSubscription = () => api.get('/subscription').then((r) => r.data
 export const activateSubscription = (plan: 'monthly' | 'quarterly' | 'annual') =>
   api.post('/subscription/activate', { plan }).then((r) => r.data);
 
+// Audit Logs
+export const getAuditLogs = (params?: { action?: string; dateFrom?: string; dateTo?: string; limit?: number; offset?: number }) =>
+  api.get('/audit-logs', { params }).then((r) => r.data);
+
 // Super Admin
 export const loginSuperAdmin = (email: string, password: string) =>
   api.post('/superadmin/login', { email, password }).then((r) => r.data);
