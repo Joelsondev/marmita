@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCustomers, createCustomer, addCredit, unblockCustomer } from '@/lib/api';
 import { formatCurrency } from '@/lib/cart';
 import { Plus, CreditCard, X, AlertCircle, AlertTriangle, Unlock } from 'lucide-react';
+import { validateCpf, formatCpf } from '@/lib/cpf';
 
 function formatCPF(value: string) {
   return value.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4').slice(0, 14);
@@ -19,9 +20,14 @@ export default function ClientesPage() {
   const [showUnblock, setShowUnblock]   = useState<string | null>(null);
   const [search, setSearch]             = useState('');
   const [form, setForm]                 = useState({ name: '', cpf: '', phone: '' });
+  const [cpfTouched, setCpfTouched]     = useState(false);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc]     = useState('');
   const [createError, setCreateError]   = useState('');
+
+  const cpfDigits   = form.cpf.replace(/\D/g, '');
+  const cpfValid    = validateCpf(cpfDigits);
+  const cpfError    = cpfTouched && cpfDigits.length === 11 && !cpfValid;
 
   const { data: customers = [], isLoading } = useQuery({ queryKey: ['customers'], queryFn: getCustomers });
 
@@ -31,6 +37,7 @@ export default function ClientesPage() {
       qc.invalidateQueries({ queryKey: ['customers'] });
       setShowNew(false);
       setForm({ name: '', cpf: '', phone: '' });
+      setCpfTouched(false);
       setCreateError('');
     },
     onError: (e: any) => setCreateError(e.response?.data?.message || 'Erro ao criar cliente'),
@@ -63,7 +70,7 @@ export default function ClientesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Clientes</h1>
         <button
-          onClick={() => { setShowNew(true); setCreateError(''); }}
+          onClick={() => { setShowNew(true); setCreateError(''); setCpfTouched(false); }}
           className="bg-gradient-to-br from-brand-500 to-brand-600 text-white p-2 rounded-xl hover:shadow-brand transition-all">
           <Plus size={20} />
         </button>
@@ -145,9 +152,20 @@ export default function ClientesPage() {
             </div>
             <div>
               <label className="label">CPF <span className="text-red-400">*</span></label>
-              <input className="input font-mono tracking-wider" placeholder="000.000.000-00" inputMode="numeric" required
-                value={formatCPF(form.cpf)}
-                onChange={(e) => setForm({ ...form, cpf: e.target.value.replace(/\D/g, '') })} />
+              <input
+                className={`input font-mono tracking-wider ${cpfError ? 'border-red-400 bg-red-50' : ''}`}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+                required
+                value={formatCpf(form.cpf)}
+                onChange={(e) => setForm({ ...form, cpf: e.target.value.replace(/\D/g, '') })}
+                onBlur={() => setCpfTouched(true)}
+              />
+              {cpfError && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle size={11} /> CPF inválido
+                </p>
+              )}
             </div>
             <div>
               <label className="label">Telefone (opcional)</label>
@@ -156,8 +174,8 @@ export default function ClientesPage() {
                 onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })} />
             </div>
             <button className="btn-primary"
-              disabled={createMut.isPending || !form.name || form.cpf.length < 11}
-              onClick={() => createMut.mutate({ name: form.name, cpf: form.cpf, phone: form.phone || undefined })}>
+              disabled={createMut.isPending || !form.name || cpfDigits.length < 11 || !cpfValid}
+              onClick={() => createMut.mutate({ name: form.name, cpf: cpfDigits, phone: form.phone || undefined })}>
               {createMut.isPending ? 'Salvando...' : 'Salvar'}
             </button>
           </div>

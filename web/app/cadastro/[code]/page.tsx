@@ -4,14 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { validateRegistrationCode, selfRegisterCustomer } from '@/lib/api';
 import { setAuth } from '@/lib/auth';
 import { AlertCircle, Store } from 'lucide-react';
-
-function formatCpf(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  return digits
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-}
+import { validateCpf, formatCpf } from '@/lib/cpf';
 
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -27,9 +20,14 @@ export default function CadastroClientePage() {
 
   const [tenant, setTenant] = useState<{ name: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [form, setForm] = useState({ name: '', cpf: '', phone: '' });
-  const [error, setError] = useState('');
+  const [form, setForm]       = useState({ name: '', cpf: '', phone: '' });
+  const [cpfTouched, setCpfTouched] = useState(false);
+  const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
+
+  const cpfDigits = form.cpf.replace(/\D/g, '');
+  const cpfValid  = validateCpf(cpfDigits);
+  const cpfError  = cpfTouched && cpfDigits.length === 11 && !cpfValid;
 
   useEffect(() => {
     if (!code) return;
@@ -40,6 +38,7 @@ export default function CadastroClientePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!cpfValid) { setCpfTouched(true); return; }
     setError('');
     setLoading(true);
     try {
@@ -112,13 +111,19 @@ export default function CadastroClientePage() {
           <div>
             <label className="label">CPF</label>
             <input
-              className="input"
+              className={`input font-mono tracking-wider ${cpfError ? 'border-red-400 bg-red-50' : ''}`}
               placeholder="000.000.000-00"
               inputMode="numeric"
-              value={form.cpf}
-              onChange={(e) => setForm({ ...form, cpf: formatCpf(e.target.value) })}
+              value={formatCpf(form.cpf)}
+              onChange={(e) => setForm({ ...form, cpf: e.target.value.replace(/\D/g, '') })}
+              onBlur={() => setCpfTouched(true)}
               required
             />
+            {cpfError && (
+              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                <AlertCircle size={11} /> CPF inválido
+              </p>
+            )}
           </div>
 
           <div>
@@ -133,7 +138,7 @@ export default function CadastroClientePage() {
             />
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading}>
+          <button type="submit" className="btn-primary" disabled={loading || (cpfDigits.length === 11 && !cpfValid)}>
             {loading ? 'Cadastrando...' : 'Criar conta e fazer pedido'}
           </button>
         </form>
