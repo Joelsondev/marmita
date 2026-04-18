@@ -18,7 +18,10 @@ function formatCPF(v: string) {
 
 export default function PedidosPage() {
   const qc = useQueryClient();
-  const [date, setDate]             = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate]             = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter]         = useState<'all' | 'pending' | 'problem'>('all');
 
