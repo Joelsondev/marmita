@@ -498,6 +498,136 @@ Gerar:
 
 ---
 
+# 👥 Perfis de Acesso
+
+## 🏢 1. Super Admin (SaaS)
+
+> Dono da plataforma. Não pertence a nenhuma marmitaria.
+
+**Permissões:**
+- Gerenciar todas as marmitarias (tenants)
+- Alterar plano manualmente (mensal / trimestral / anual)
+- Bloquear / desbloquear acesso
+- Estender trial
+- Acessar qualquer tenant via impersonação
+- Ver inadimplentes
+
+**Endpoints:**
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/superadmin/login` | Autenticação |
+| `GET` | `/superadmin/tenants` | Listar todas as marmitarias |
+| `GET` | `/superadmin/tenants/inadimplentes` | Somente bloqueadas / trial expirado |
+| `GET` | `/superadmin/tenants/:id` | Detalhe de uma marmitaria |
+| `PATCH` | `/superadmin/tenants/:id/subscription` | Alterar plano/status manualmente |
+| `PATCH` | `/superadmin/tenants/:id/block` | Forçar bloqueio |
+| `PATCH` | `/superadmin/tenants/:id/unblock` | Desbloquear + reativar plano |
+| `PATCH` | `/superadmin/tenants/:id/extend-trial` | Estender trial N dias |
+| `POST` | `/superadmin/tenants/:id/impersonate` | Gerar token como admin do tenant (expira em 2h) |
+
+---
+
+## 🧑‍🍳 2. Admin (dono da marmitaria)
+
+> Cliente que paga o sistema. Perfil mais importante — gestão total do seu tenant.
+
+**Permissões:**
+- Dashboard completo com métricas financeiras
+- Clientes: criar, editar, saldo, desbloquear
+- Marmitas: CRUD completo
+- Pedidos: ver, aprovar, cancelar, retirada forçada
+- Descontos e configurações de no-show
+- Adicionar crédito, ver saldo total do sistema, ver clientes com dívida
+- Gerenciar operadores (criar, ativar, desativar)
+
+**Endpoints exclusivos do Admin (operador não acessa):**
+
+| Rota | Descrição |
+|------|-----------|
+| `GET /orders/dashboard` | Dashboard com métricas financeiras |
+| `POST /orders/:id/approve` | Aprovar retirada |
+| `POST /orders/:id/cancel` | Cancelar pedido |
+| `POST /orders/:id/pickup/force` | Retirada forçada (sem saldo — cria dívida) |
+| `POST /customers` | Criar cliente |
+| `PUT /customers/:id` | Editar cliente |
+| `PATCH /customers/:id/unblock` | Desbloquear cliente |
+| `POST /wallet/:id/credit` | Adicionar crédito |
+| `GET /wallet/summary` | Saldo total + devedores do sistema |
+| `GET /wallet/:id/transactions` | Histórico de transações de um cliente |
+| `PUT /discounts/rule` | Configurar desconto e no-show |
+| `POST/PUT/DELETE /meals/:id` | Criar / editar / remover marmitas |
+| `GET /operators` | Listar operadores |
+| `POST /operators` | Criar operador |
+| `PATCH /operators/:id/activate` | Ativar operador |
+| `PATCH /operators/:id/deactivate` | Desativar operador |
+
+---
+
+## 👨‍💼 3. Operador (funcionário de balcão)
+
+> Acesso restrito à operação do dia. Evita fraudes e erros.
+
+**Pode:**
+- Ver pedidos e marmitas
+- Realizar retirada (QR Code / CPF)
+- Ver saldo do cliente
+- Criar pedido manual
+
+**Não pode:**
+- Alterar preço, crédito ou configurações
+- Ver relatórios financeiros
+- Aprovar / cancelar / forçar retirada
+- Criar ou editar clientes
+
+**Auth:** `POST /auth/operator/login`
+
+**Endpoints compartilhados com Admin:**
+
+| Rota | Descrição |
+|------|-----------|
+| `GET /orders` | Ver pedidos |
+| `GET /orders/:id` | Ver pedido |
+| `GET /orders/lookup` | Busca por CPF / QR |
+| `POST /orders` | Criar pedido manual |
+| `POST /orders/:id/pickup` | Confirmar retirada |
+| `POST /orders/pickup/cpf` | Retirada por CPF |
+| `GET /customers` | Ver clientes e saldos |
+| `GET /customers/:id` | Ver cliente |
+| `GET /customers/cpf/:cpf` | Buscar por CPF |
+| `GET /meals` | Ver marmitas |
+| `GET /meals/today` | Marmitas do dia |
+
+---
+
+## 🧑‍💻 4. Cliente (usuário final)
+
+> Acesso multi-tenant — um CPF pode estar vinculado a várias marmitarias.
+
+**Permissões:**
+- Ver saldo e perfil
+- Montar e fazer pedido com opções personalizadas
+- Acompanhar pedidos do dia
+- Histórico completo de pedidos e transações
+- Ver QR Code para retirada
+
+**Endpoints:**
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/auth/client/tenants?cpf=` | Marmitarias vinculadas ao CPF |
+| `POST` | `/auth/client/login` | Login (CPF + tenantId) |
+| `POST` | `/auth/client/register` | Auto-cadastro por link |
+| `GET` | `/customers/me` | Perfil + saldo + últimos pedidos |
+| `GET` | `/customers/me/transactions` | Histórico de créditos/débitos (paginado) |
+| `GET` | `/meals/today` | Marmitas do dia com opções |
+| `POST` | `/orders` | Criar pedido |
+| `GET` | `/orders/my` | Pedidos de hoje |
+| `GET` | `/orders/history` | Histórico completo (paginado) |
+| `GET` | `/orders/qr-token` | QR Code para retirada |
+
+---
+
 # ⭐ Diferencial
 
 Sistema deve ser:
