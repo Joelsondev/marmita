@@ -19,6 +19,7 @@ model Tenant {
   meals             Meal[]
   discountRule      DiscountRule?
   admins            Admin[]
+  operators         Operator[]
   subscription      Subscription?
   registrationLinks RegistrationLink[]
 }
@@ -64,6 +65,17 @@ model SuperAdmin {
   name         String
   email        String   @unique
   passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Operator {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 }
 

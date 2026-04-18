@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { OrdersService, CreateOrderDto } from './orders.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { IsString } from 'class-validator';
-
 
 export class PickupByCpfDto {
   @IsString() cpf: string;
@@ -14,6 +15,8 @@ export class OrdersController {
   constructor(private service: OrdersService) {}
 
   @Get('dashboard')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   getDashboard(@Request() req) {
     return this.service.getDashboard(req.user.tenantId);
   }
@@ -39,6 +42,19 @@ export class OrdersController {
     return this.service.getMyOrders(req.user.id);
   }
 
+  @Get('history')
+  getMyOrderHistory(
+    @Request() req,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.service.getMyOrderHistory(
+      req.user.id,
+      limit ? parseInt(limit, 10) : 20,
+      offset ? parseInt(offset, 10) : 0,
+    );
+  }
+
   @Get()
   findAll(@Query('date') date: string, @Request() req) {
     return this.service.findAll(req.user.tenantId, date);
@@ -55,11 +71,15 @@ export class OrdersController {
   }
 
   @Post(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   approveOrder(@Param('id') id: string, @Request() req) {
     return this.service.approveOrder(id, req.user.tenantId);
   }
 
   @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   cancelOrder(@Param('id') id: string, @Request() req) {
     return this.service.cancelOrder(id, req.user.tenantId);
   }
@@ -70,6 +90,8 @@ export class OrdersController {
   }
 
   @Post(':id/pickup/force')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   forcePickup(@Param('id') id: string, @Request() req) {
     return this.service.forcePickup(id, req.user.tenantId);
   }

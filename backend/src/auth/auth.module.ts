@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { AdminAuthController } from './admin-auth.controller';
 import { ClientAuthController } from './client-auth.controller';
+import { OperatorAuthController } from './operator-auth.controller';
 import { RegistrationLinksController } from './registration-links.controller';
 import { SubscriptionModule } from '../subscription/subscription.module';
 
@@ -19,7 +20,7 @@ import { SubscriptionModule } from '../subscription/subscription.module';
     forwardRef(() => SubscriptionModule),
   ],
   providers: [AuthService, JwtStrategy],
-  controllers: [AuthController, AdminAuthController, ClientAuthController, RegistrationLinksController],
+  controllers: [AuthController, AdminAuthController, ClientAuthController, OperatorAuthController, RegistrationLinksController],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

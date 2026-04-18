@@ -79,6 +79,19 @@ export class CustomersService {
     });
   }
 
+  async getMyTransactions(customerId: string, limit = 30, offset = 0) {
+    const [transactions, total] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.walletTransaction.count({ where: { customerId } }),
+    ]);
+    return { transactions, total, limit, offset };
+  }
+
   async getDebtors(tenantId: string) {
     return this.prisma.customer.findMany({
       where: { tenantId, balance: { lt: 0 } },

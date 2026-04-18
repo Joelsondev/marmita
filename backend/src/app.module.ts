@@ -11,6 +11,7 @@ import { OrdersModule } from './orders/orders.module';
 import { DiscountsModule } from './discounts/discounts.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SuperAdminModule } from './superadmin/superadmin.module';
+import { OperatorsModule } from './operators/operators.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SuperAdminModule } from './superadmin/superadmin.module';
     DiscountsModule,
     SubscriptionModule,
     SuperAdminModule,
+    OperatorsModule,
   ],
 })
 export class AppModule {}

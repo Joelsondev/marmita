@@ -26,6 +26,20 @@ export class AuthService {
     };
   }
 
+  async loginOperator(email: string, password: string) {
+    const op = await this.prisma.operator.findUnique({ where: { email }, include: { tenant: true } });
+    if (!op || !op.active) throw new UnauthorizedException('Credenciais inválidas');
+
+    const valid = await bcrypt.compare(password, op.passwordHash);
+    if (!valid) throw new UnauthorizedException('Credenciais inválidas');
+
+    const payload = { sub: op.id, tenantId: op.tenantId, role: 'operator' };
+    return {
+      token: this.jwt.sign(payload),
+      operator: { id: op.id, name: op.name, email: op.email, tenantId: op.tenantId, tenantName: op.tenant.name, tenantSlug: op.tenant.slug },
+    };
+  }
+
   async loginCustomerByCpf(cpf: string, tenantId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { tenantId_cpf: { tenantId, cpf } },

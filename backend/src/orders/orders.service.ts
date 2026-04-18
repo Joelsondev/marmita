@@ -400,6 +400,28 @@ export class OrdersService {
     });
   }
 
+  async getMyOrderHistory(customerId: string, limit = 20, offset = 0) {
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { customerId },
+        include: {
+          items: {
+            include: {
+              meal: { select: { name: true } },
+              options: { include: { option: { select: { name: true } } } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.order.count({ where: { customerId } }),
+    ]);
+
+    return { orders, total, limit, offset };
+  }
+
   async getDashboard(tenantId: string) {
     // Detect and mark no-shows before building dashboard
     await this.detectAndMarkNoShows(tenantId);
